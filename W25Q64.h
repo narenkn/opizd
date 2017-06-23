@@ -1,5 +1,5 @@
 // フラッシュメモリ W25Q64の利用開始
-void W25Q64_begin(uint8_t cs);
+void W25Q64_begin(int fid);
 // ステータスレジスタ1の値取得
 uint8_t W25Q64_readStatusReg1(void);
 // ステータスレジスタ2の値取得

@@ -10,11 +10,11 @@
 #include "spi_lib.h"
 #include "W25Q64.h"
 
-#define SPI_SLAVE_SEL_PIN    10     // チップセレクトピン番号
+#define delay(A)
 #define MAX_BLOCKSIZE        128    // ブロック総数
 #define MAX_SECTORSIZE       2048   // 総セクタ数
 
-#define CMD_WRIRE_ENABLE      0x06
+#define CMD_WRITE_ENABLE      0x06
 #define CMD_WRITE_DISABLE     0x04
 #define CMD_READ_STATUS_R1    0x05
 #define CMD_READ_STATUS_R2    0x35
@@ -46,36 +46,41 @@
 #define SR1_BUSY_MASK	0x01
 #define SR1_WEN_MASK	0x02
 
-static uint8_t _spich;
+static bool _spich = false;
+static int  _spiFid = 0;
 
-void spcDump(char *id,int rc, uint8_t *data,int len) {
-    int i;
-    printf("[%s] = %d\n",id,rc);
-    for(i=0;i<len;i++) {
-      printf("%0x ",data[i]);
-      if ( (i % 10) == 9) printf("\n");
-    }
-    printf("\n");
-}
+//void spcDump(char *id,int rc, uint8_t *data,int len) {
+//    int i;
+//    printf("[%s] = %d\n",id,rc);
+//    for(i=0;i<len;i++) {
+//      printf("%0x ",data[i]);
+//      if ( (i % 10) == 9) printf("\n");
+//    }
+//    printf("\n");
+//}
 
 //
 // フラッシュメモリ W25Q64の利用開始
 // 
-//void W25Q64_begin(uint8_t cs) {
-void W25Q64_begin(uint8_t spich) {
-    _spich = spich;
+void
+W25Q64_begin(int fid)
+{
+  _spich = true;
+  _spiFid = fid;
 }
 
 //
 // ステータスレジスタ1の値取得
 // 戻り値: ステータスレジスタ1の値
 //
-uint8_t W25Q64_readStatusReg1(void) {
+uint8_t
+W25Q64_readStatusReg1(void)
+{
   uint8_t data[2];
   int rc;
   data[0] = CMD_READ_STATUS_R1;
   data[1] = 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_xfer(_spiFid, data, sizeof(data), data, sizeof(data));
 //  spcDump("readStatusReg1",rc,data,2);
   return data[1];
 }
@@ -84,12 +89,14 @@ uint8_t W25Q64_readStatusReg1(void) {
 // ステータスレジスタ2の値取得
 // 戻り値: ステータスレジスタ2の値
 //
-uint8_t W25Q64_readStatusReg2(void) {
+uint8_t
+W25Q64_readStatusReg2(void)
+{
   uint8_t data[2];
   int rc;
   data[0] = CMD_READ_STATUS_R2;
   data[1] = 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_xfer(_spiFid, data, sizeof(data), data, sizeof(data));
 //  spcDump("readStatusReg2",rc,data,2);
   return data[1];
 }
@@ -98,40 +105,46 @@ uint8_t W25Q64_readStatusReg2(void) {
 // JEDEC ID(Manufacture, Memory Type,Capacity)の取得
 // d(out) :Manufacture, Memory Type,Capacityの３バイトを格納する
 //
-void W25Q64_readManufacturer(uint8_t* d) {
+void
+W25Q64_readManufacturer(uint8_t* d)
+{
   uint8_t data[4];
   int rc;
   memset(data,0,sizeof(data));
   data[0] = CMD_JEDEC_ID;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_xfer(_spiFid, data, sizeof(data), data, sizeof(data));
 //  spcDump("readManufacturer",rc,data,4);
-  memcpy(d,&data[1],3);
+  memcpy(d, data+1, 3);
 }
 
 //
 // Unique IDの取得
 // d(out): Unique ID 7バイトを返す  
 //
-void W25Q64_readUniqieID(uint8_t* d) {
+void
+W25Q64_readUniqieID(uint8_t* d)
+{
   uint8_t data[12];
   int rc;
   memset(data,0,sizeof(data));
   data[0] = CMD_READ_UNIQUE_ID;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_xfer(_spiFid, data, sizeof(data), data, sizeof(data));
 //  spcDump("readUniqieID",rc,data,12);
-  memcpy(d,&data[5],7);
+  memcpy(d, data+5, 7);
 }
 
 //
 // 書込み等の処理中チェック
 // 戻り値: true:作業 、false:アイドル中
 //
-bool W25Q64_IsBusy() {
+bool
+W25Q64_IsBusy()
+{
   uint8_t data[2];
   int rc;
   data[0] = CMD_READ_STATUS_R1;
   data[1] = 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_xfer(_spiFid, data, sizeof(data), data, sizeof(data));
 //  spcDump("IsBusy",rc,data,2);
   uint8_t r1;
   r1 = data[1];
@@ -143,33 +156,39 @@ bool W25Q64_IsBusy() {
 //
 //　パワーダウン指定 
 //
-void W25Q64_powerDown(void) {
+void
+W25Q64_powerDown(void)
+{
   uint8_t data[1];
   int rc;
   data[0] = CMD_POWER_DOWN;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
 //  spcDump("powerDown",rc,data,1);
 }
 
 //
 // 書込み許可設定
 //
-void W25Q64_WriteEnable(void) {
+void
+W25Q64_WriteEnable(void)
+{
   uint8_t data[1];
   int rc;
-  data[0] = CMD_WRIRE_ENABLE;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  data[0] = CMD_WRITE_ENABLE;
+  rc = spi_write(_spiFid, data, sizeof(data));
 //  spcDump("WriteEnable",rc,data,1);
 }
 
 //
 // 書込み禁止設定
 //
-void W25Q64_WriteDisable(void) {
+void
+W25Q64_WriteDisable(void)
+{
   uint8_t data[1];
   int rc;
   data[0] = CMD_WRITE_DISABLE;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
 //  spcDump("WriteDisable",rc,data,1);
 }
 
@@ -178,18 +197,20 @@ void W25Q64_WriteDisable(void) {
 // addr(in): 読込開始アドレス (24ビット 0x000000 - 0xFFFFFF)
 // n(in):読込データ数
 //
-uint16_t W25Q64_read(uint32_t addr,uint8_t *buf,uint16_t n){ 
+uint16_t
+W25Q64_read(uint32_t addr,uint8_t *buf,uint16_t n)
+{
   uint8_t *data;
   int rc;
 
-  data = (char*)malloc(n+4);
+  data = (uint8_t *)malloc(n+4);
   data[0] = CMD_READ_DATA;
   data[1] = (addr>>16) & 0xFF;     // A23-A16
   data[2] = (addr>>8) & 0xFF;      // A15-A08
   data[3] = addr & 0xFF;           // A07-A00
-  rc = spiDataRW (_spich,data,n+4);
+  rc = spi_xfer(_spiFid, data, n+4, data, n+4);
 //  spcDump("read",rc,data,rc);
-  memcpy(buf,&data[4],n);
+  memcpy(buf, data+4, n);
   free(data);
   return rc-4;
 }
@@ -199,19 +220,21 @@ uint16_t W25Q64_read(uint32_t addr,uint8_t *buf,uint16_t n){
 // addr(in): 読込開始アドレス (24ビット 0x00000 - 0xFFFFF)
 // n(in):読込データ数
 //
-uint16_t W25Q64_fastread(uint32_t addr,uint8_t *buf,uint16_t n) {
+uint16_t
+W25Q64_fastread(uint32_t addr,uint8_t *buf,uint16_t n)
+{
   uint8_t *data;
   int rc;
 
-  data = (char*)malloc(n+5);
+  data = (uint8_t *)malloc(n+5);
   data[0] = CMD_FAST_READ;
   data[1] = (addr>>16) & 0xFF;     // A23-A16
   data[2] = (addr>>8) & 0xFF;      // A15-A08
   data[3] = addr & 0xFF;           // A07-A00
   data[4] = 0;
-  rc = spiDataRW (_spich,data,n+5);
+  rc = spi_xfer(_spiFid, data, n+5, data, n+5);
 //  spcDump("fastread",rc,data,rc);
-  memcpy(buf,&data[5],n);
+  memcpy(buf, data+5, n);
   return rc-5;
 }
 
@@ -223,7 +246,9 @@ uint16_t W25Q64_fastread(uint32_t addr,uint8_t *buf,uint16_t n) {
 //  補足： データシートでは消去に通常 30ms 、最大400msかかると記載されている
 //         アドレス23ビットのうち上位 11ビットがセクタ番号の相当する。下位12ビットはセクタ内アドレスとなる。
 //
-bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait) {
+bool
+W25Q64_eraseSector(uint16_t sect_no, bool flgwait)
+{
   uint8_t data[4];
   int rc;
   uint32_t addr = sect_no;
@@ -234,7 +259,7 @@ bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait) {
   data[1] = (addr>>16) & 0xff;
   data[2] = (addr>>8) & 0xff;
   data[3] = addr & 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
  
   // 処理待ち
   while(W25Q64_IsBusy() & flgwait) {
@@ -251,7 +276,9 @@ bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait) {
 //   補足: データシートでは消去に通常 150ms 、最大1000msかかると記載されている
 //         アドレス23ビットのうち上位 7ビットがブロックの相当する。下位16ビットはブロック内アドレスとなる。
 //
-bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait) {
+bool
+W25Q64_erase64Block(uint16_t blk_no, bool flgwait)
+{
   uint8_t data[4];
   int rc;
   uint32_t addr = blk_no;
@@ -262,7 +289,7 @@ bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait) {
   data[1] = (addr>>16) & 0xff;
   data[2] = (addr>>8) & 0xff;
   data[3] = addr & 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
  
   // 処理待ち
   while(W25Q64_IsBusy() & flgwait) {
@@ -279,7 +306,9 @@ bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait) {
 //   補足: データシートでは消去に通常 120ms 、最大800msかかると記載されている
 //         アドレス23ビットのうち上位 8ビットがブロックの相当する。下位15ビットはブロック内アドレスとなる。
 //
-bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait) {
+bool
+W25Q64_erase32Block(uint16_t blk_no, bool flgwait)
+{
   uint8_t data[4];
   int rc;
   uint32_t addr = blk_no;
@@ -290,7 +319,7 @@ bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait) {
   data[1] = (addr>>16) & 0xff;
   data[2] = (addr>>8) & 0xff;
   data[3] = addr & 0xff;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
  
   // 処理待ち
   while(W25Q64_IsBusy() & flgwait) {
@@ -305,13 +334,15 @@ bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait) {
 // 戻り値: true:正常終了 false:失敗
 //   補足: データシートでは消去に通常 15s 、最大30sかかると記載されている
 //
-bool W25Q64_eraseAll(bool flgwait) {
+bool
+W25Q64_eraseAll(bool flgwait)
+{
   uint8_t data[1];
   int rc;
 
   W25Q64_WriteEnable();  
   data[0] = CMD_CHIP_ERASE;
-  rc = spiDataRW (_spich,data,sizeof(data));
+  rc = spi_write(_spiFid, data, sizeof(data));
 
   // 処理待ち
   while(W25Q64_IsBusy() & flgwait) {
@@ -327,7 +358,8 @@ bool W25Q64_eraseAll(bool flgwait) {
 // data(in)    : 書込みデータ格納アドレス
 // n(in)       : 書込みバイト数(0～256)
 //
-uint16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, uint8_t n) {
+uint16_t
+W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, uint8_t n) {
 //  uint8_t data[4];
   uint8_t *data;
   int rc;
@@ -343,13 +375,13 @@ uint16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, uint8
     return 0;  
   }
 
-  data = (char*)malloc(n+4);
+  data = (uint8_t *)malloc(n+4);
   data[0] = CMD_PAGE_PROGRAM;
   data[1] = (addr>>16) & 0xff;
   data[2] = (addr>>8) & 0xff;
   data[3] = addr & 0xFF;
-  memcpy(&data[4],buf,n);
-  rc = spiDataRW (_spich,data,n+4);
+  memcpy(data+4, buf, n);
+  rc = spi_write(_spiFid,data,n+4);
 //  spcDump("pageWrite",rc,buf,n);
 
   while(W25Q64_IsBusy()) ;
