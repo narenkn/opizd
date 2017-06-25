@@ -75,35 +75,13 @@ int spi_close(int fd) {
   return close(fd);
 }
 
-int spi_xfer(int fd, uint8_t *tx_buffer, uint8_t tx_len, uint8_t *rx_buffer, uint8_t rx_len){
-  struct spi_ioc_transfer spi_message[2];
-  memset(spi_message, 0, sizeof(spi_message));
-
-  spi_message[0].rx_buf = (unsigned long)tx_buffer;
-  spi_message[0].len = tx_len;
-
-  spi_message[1].tx_buf = (unsigned long)rx_buffer;
-  spi_message[1].len = rx_len;
-
-  return ioctl(fd, SPI_IOC_MESSAGE(2), spi_message);
-}
-
-int spi_read(int fd, uint8_t *rx_buffer, uint8_t rx_len){
-  struct spi_ioc_transfer spi_message[1];
-  memset(spi_message, 0, sizeof(spi_message));
-
-  spi_message[0].rx_buf = (unsigned long)rx_buffer;
-  spi_message[0].len = rx_len;
-
-  return ioctl(fd, SPI_IOC_MESSAGE(1), spi_message);
-}
-
-int spi_write(int fd, uint8_t *tx_buffer, uint8_t tx_len){
+int spi_xfer(int fd, uint8_t *tx_buffer, uint8_t *rx_buffer, uint8_t len){
   struct spi_ioc_transfer spi_message[1];
   memset(spi_message, 0, sizeof(spi_message));
 
   spi_message[0].tx_buf = (unsigned long)tx_buffer;
-  spi_message[0].len = tx_len;
+  spi_message[0].rx_buf = (unsigned long)rx_buffer;
+  spi_message[0].len = len;
 
   return ioctl(fd, SPI_IOC_MESSAGE(1), spi_message);
 }

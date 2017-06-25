@@ -35,9 +35,6 @@ typedef struct {
 
 extern int spi_open(char *device, spi_config_t config);
 extern int spi_close(int fd);
-extern int spi_xfer(int fd, uint8_t *tx_buffer, uint8_t tx_len, uint8_t *rx_buffer, uint8_t rx_len);
-extern int spi_read(int fd, uint8_t *rx_buffer, uint8_t rx_len);
-extern int spi_write(int fd, uint8_t *tx_buffer, uint8_t tx_len);
-
+extern int spi_xfer(int fd, uint8_t *tx_buffer, uint8_t *rx_buffer, uint8_t len);
 
 #endif
